@@ -683,12 +683,13 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                 </div>
               )}
 
+              {/* Final Output Videos with Publish Functionality */}
               {(() => {
                 const finalVideos = output.final_videos || []
                 const videos = output.videos || []
                 const allVideos = finalVideos.length > 0 ? finalVideos : videos
                 return allVideos.length > 0
-              })() ? (
+              })() && (
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>✅ Final Output Videos ({(() => {
@@ -698,8 +699,10 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                     })()})</span>
                     {job.status === 'completed' && (() => {
                       const output = job.output_result || {}
-                      const videos = output.final_videos || output.videos || []
-                      const allVideosHaveUsers = videos.length > 0 && videos.every((_, idx) => videoUserMap[idx] && videoPasswordMap[idx] && videoPasswordMap[idx].trim() !== '')
+                      const finalVideos = output.final_videos || []
+                      const videos = output.videos || []
+                      const allVideos = finalVideos.length > 0 ? finalVideos : videos
+                      const allVideosHaveUsers = allVideos.length > 0 && allVideos.every((_, idx) => videoUserMap[idx] && videoPasswordMap[idx] && videoPasswordMap[idx].trim() !== '')
                       const isDisabled = publishing || loadingUsers || !allVideosHaveUsers
                       
                       return (
@@ -740,7 +743,11 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                       const finalVideos = output.final_videos || []
                       const videos = output.videos || []
                       return (finalVideos.length > 0 ? finalVideos : videos)
-                    })().map((videoPath, idx) => (
+                    })().map((videoPath, idx) => {
+                      const finalVideos = output.final_videos || []
+                      const videos = output.videos || []
+                      const allVideos = finalVideos.length > 0 ? finalVideos : videos
+                      return (
                       <div key={idx} style={{ padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                           <div style={{ fontSize: '12px', color: '#94a3b8' }}>
@@ -819,7 +826,8 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                           </div>
                         )}
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}

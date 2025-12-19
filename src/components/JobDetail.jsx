@@ -27,6 +27,10 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
     try {
       const res = await fetch(`${apiUrl}/job/${jobId}`)
       const data = await res.json()
+      console.log('Job data:', data)
+      console.log('output_result:', data.output_result)
+      console.log('final_videos:', data.output_result?.final_videos)
+      console.log('videos:', data.output_result?.videos)
       setJob(data)
       setLoading(false)
     } catch (error) {
@@ -74,7 +78,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
     }
 
     const output = job.output_result || {}
-    const videos = output.final_videos || output.videos || []
+    const videos = (output.final_videos && output.final_videos.length > 0) ? output.final_videos : (output.videos || [])
     
     if (videos.length === 0) {
       setPublishMessage({ type: 'error', text: 'No videos to publish' })
@@ -222,6 +226,15 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
 
   const params = job.input_params || {}
   const output = job.output_result || {}
+  
+  // Debug logging
+  if (job && job.status === 'completed') {
+    console.log('Completed job output:', output)
+    console.log('final_videos:', output.final_videos)
+    console.log('videos:', output.videos)
+    console.log('Has final_videos:', !!(output.final_videos && output.final_videos.length > 0))
+    console.log('Has videos:', !!(output.videos && output.videos.length > 0))
+  }
 
   return (
     <div>
@@ -670,10 +683,10 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                 </div>
               )}
 
-              {output.final_videos && output.final_videos.length > 0 && (
+              {(output.final_videos && output.final_videos.length > 0) || (output.videos && output.videos.length > 0) ? (
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>✅ Final Output Videos ({output.final_videos.length})</span>
+                    <span>✅ Final Output Videos ({(output.final_videos || output.videos || []).length})</span>
                     {job.status === 'completed' && (() => {
                       const output = job.output_result || {}
                       const videos = output.final_videos || output.videos || []
@@ -714,7 +727,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                     </div>
                   )}
                   <div style={{ maxHeight: '400px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {output.final_videos.map((videoPath, idx) => (
+                    {(output.final_videos || output.videos || []).map((videoPath, idx) => (
                       <div key={idx} style={{ padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                           <div style={{ fontSize: '12px', color: '#94a3b8' }}>

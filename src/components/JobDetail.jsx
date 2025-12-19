@@ -7,7 +7,6 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
   const [users, setUsers] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [videoUserMap, setVideoUserMap] = useState({}) // Map video index to user
-  const [videoPasswordMap, setVideoPasswordMap] = useState({}) // Map video index to user password
   const [publishing, setPublishing] = useState(false)
   const [publishMessage, setPublishMessage] = useState(null)
 
@@ -57,19 +56,6 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
       ...prev,
       [videoIndex]: userId
     }))
-    // Clear password when user changes
-    setVideoPasswordMap(prev => {
-      const newMap = { ...prev }
-      delete newMap[videoIndex]
-      return newMap
-    })
-  }
-
-  const handlePasswordChange = (videoIndex, password) => {
-    setVideoPasswordMap(prev => ({
-      ...prev,
-      [videoIndex]: password
-    }))
   }
 
   const handlePublish = async () => {
@@ -92,12 +78,6 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
       return
     }
 
-    // Check if all videos have passwords entered
-    const missingPasswords = videos.filter((_, idx) => !videoPasswordMap[idx] || videoPasswordMap[idx].trim() === '')
-    if (missingPasswords.length > 0) {
-      setPublishMessage({ type: 'error', text: `Please enter passwords for all ${missingPasswords.length} video(s)` })
-      return
-    }
 
     setPublishing(true)
     setPublishMessage(null)
@@ -107,7 +87,6 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
       const videoPostItems = await Promise.all(
         videos.map(async (videoPath, idx) => {
           const userId = videoUserMap[idx]
-          const userPassword = videoPasswordMap[idx]
           const user = users.find(u => u.id === userId)
           if (!user) {
             throw new Error(`User not found for video ${idx + 1}`)
@@ -133,7 +112,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
           return {
             final_output_video: videoPath,
             user_email: user.email,
-            user_password: userPassword,
+            user_password: '', // Password not required
             user_username: user.username,
             proxy_login: proxyData.login || '',
             proxy_password: proxyData.password || '',
@@ -162,7 +141,6 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
         setPublishMessage({ type: 'success', text: `Successfully logged publish request for ${videos.length} video(s)` })
         // Clear selections after successful publish
         setVideoUserMap({})
-        setVideoPasswordMap({})
       } else {
         setPublishMessage({ type: 'error', text: data.detail || 'Failed to publish videos' })
       }
@@ -702,7 +680,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                       const finalVideos = output.final_videos || []
                       const videos = output.videos || []
                       const allVideos = finalVideos.length > 0 ? finalVideos : videos
-                      const allVideosHaveUsers = allVideos.length > 0 && allVideos.every((_, idx) => videoUserMap[idx] && videoPasswordMap[idx] && videoPasswordMap[idx].trim() !== '')
+                      const allVideosHaveUsers = allVideos.length > 0 && allVideos.every((_, idx) => videoUserMap[idx])
                       const isDisabled = publishing || loadingUsers || !allVideosHaveUsers
                       
                       return (
@@ -718,7 +696,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                             cursor: isDisabled ? 'not-allowed' : 'pointer',
                             opacity: isDisabled ? 0.6 : 1
                           }}
-                          title={!allVideosHaveUsers ? 'Please select users and enter passwords for all videos' : ''}
+                          title={!allVideosHaveUsers ? 'Please select users for all videos' : ''}
                         >
                           {publishing ? '⏳ Publishing...' : '📤 Publish Videos'}
                         </button>
@@ -796,32 +774,9 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                               </select>
                             )}
                             {videoUserMap[idx] && (
-                              <>
-                                <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '6px', display: 'block', fontWeight: '600' }}>
-                                  🔒 Enter User Password:
-                                </label>
-                                <input
-                                  type="password"
-                                  value={videoPasswordMap[idx] || ''}
-                                  onChange={(e) => handlePasswordChange(idx, e.target.value)}
-                                  placeholder="Enter user password"
-                                  style={{
-                                    width: '100%',
-                                    padding: '8px',
-                                    background: '#1e293b',
-                                    border: '1px solid #334155',
-                                    borderRadius: '6px',
-                                    color: '#e2e8f0',
-                                    fontSize: '13px',
-                                    marginBottom: '6px'
-                                  }}
-                                />
-                                {videoPasswordMap[idx] && videoPasswordMap[idx].trim() !== '' && (
-                                  <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px' }}>
-                                    ✓ Password entered
-                                  </div>
-                                )}
-                              </>
+                              <div style={{ fontSize: '11px', color: '#10b981', marginTop: '6px' }}>
+                                ✓ User selected
+                              </div>
                             )}
                           </div>
                         )}

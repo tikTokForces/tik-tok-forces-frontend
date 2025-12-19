@@ -4,12 +4,23 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
   const [viewingVideo, setViewingVideo] = useState(null)
+  const [users, setUsers] = useState([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [videoUserMap, setVideoUserMap] = useState({}) // Map video index to user
+  const [publishing, setPublishing] = useState(false)
+  const [publishMessage, setPublishMessage] = useState(null)
 
   useEffect(() => {
     if (jobId) {
       fetchJobDetails()
     }
   }, [jobId])
+
+  useEffect(() => {
+    if (job && job.status === 'completed') {
+      loadUsers()
+    }
+  }, [job])
 
   const fetchJobDetails = async () => {
     try {
@@ -20,6 +31,133 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
     } catch (error) {
       console.error('Failed to fetch job details:', error)
       setLoading(false)
+    }
+  }
+
+  const loadUsers = async () => {
+    setLoadingUsers(true)
+    try {
+      const res = await fetch(`${apiUrl}/users?limit=1000`)
+      const data = await res.json()
+      setUsers(data.users || [])
+    } catch (error) {
+      console.error('Failed to load users:', error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const handleUserSelect = (videoIndex, userId) => {
+    setVideoUserMap(prev => ({
+      ...prev,
+      [videoIndex]: userId
+    }))
+  }
+
+  const handlePublish = async () => {
+    if (!job || job.status !== 'completed') {
+      return
+    }
+
+    const output = job.output_result || {}
+    const videos = output.final_videos || output.videos || []
+    
+    if (videos.length === 0) {
+      setPublishMessage({ type: 'error', text: 'No videos to publish' })
+      return
+    }
+
+    // Check if all videos have users selected
+    const missingUsers = videos.filter((_, idx) => !videoUserMap[idx])
+    if (missingUsers.length > 0) {
+      setPublishMessage({ type: 'error', text: `Please select users for all ${missingUsers.length} video(s)` })
+      return
+    }
+
+    setPublishing(true)
+    setPublishMessage(null)
+
+    try {
+      // Prepare video-user pairs with full user and proxy data
+      const finalOutputVideos = await Promise.all(
+        videos.map(async (videoPath, idx) => {
+          const userId = videoUserMap[idx]
+          const user = users.find(u => u.id === userId)
+          if (!user) {
+            throw new Error(`User not found for video ${idx + 1}`)
+          }
+
+          // Get proxy data for this user
+          // First try to get single proxy, if endpoint doesn't exist, get all and find
+          let proxyData = null
+          try {
+            const proxyRes = await fetch(`${apiUrl}/proxies/${user.proxy_id}`)
+            if (proxyRes.ok) {
+              proxyData = await proxyRes.json()
+            } else {
+              // Fallback: get all proxies and find the one we need
+              const allProxiesRes = await fetch(`${apiUrl}/proxies`)
+              const allProxiesData = await allProxiesRes.json()
+              proxyData = allProxiesData.proxies?.find(p => p.id === user.proxy_id) || {}
+            }
+          } catch (err) {
+            console.error('Failed to load proxy:', err)
+            proxyData = {}
+          }
+
+          return {
+            path: videoPath,
+            user_id: userId,
+            user_email: user.email,
+            user_username: user.username,
+            proxy_login: proxyData.login || '',
+            proxy_password: proxyData.password || '',
+            proxy_ip: proxyData.ip || '',
+            proxy_port: proxyData.port || 0
+          }
+        })
+      )
+
+      // Use first video's user/proxy as main (for backward compatibility with endpoint)
+      const firstVideo = finalOutputVideos[0]
+      if (!firstVideo) {
+        throw new Error('No videos to publish')
+      }
+
+      // Prepare request - endpoint expects single user/proxy but we pass all video-user pairs
+      const requestData = {
+        final_output_videos: finalOutputVideos,
+        user_email: firstVideo.user_email,
+        user_password: '', // Password is not stored in DB, would need user input
+        user_username: firstVideo.user_username,
+        proxy_login: firstVideo.proxy_login,
+        proxy_password: firstVideo.proxy_password,
+        proxy_ip: firstVideo.proxy_ip,
+        proxy_port: firstVideo.proxy_port
+      }
+
+      const res = await fetch(`${apiUrl}/job/${jobId}/post`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        setPublishMessage({ type: 'success', text: `Successfully logged publish request for ${videos.length} video(s)` })
+        // Clear selections after successful publish
+        setVideoUserMap({})
+      } else {
+        setPublishMessage({ type: 'error', text: data.detail || 'Failed to publish videos' })
+      }
+    } catch (error) {
+      console.error('Failed to publish videos:', error)
+      setPublishMessage({ type: 'error', text: error.message || 'Failed to publish videos' })
+    } finally {
+      setPublishing(false)
     }
   }
 
@@ -525,10 +663,39 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
 
               {output.final_videos && output.final_videos.length > 0 && (
                 <div style={{ marginBottom: '20px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px' }}>
-                    ✅ Final Output Videos ({output.final_videos.length})
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>✅ Final Output Videos ({output.final_videos.length})</span>
+                    {job.status === 'completed' && (
+                      <button
+                        onClick={handlePublish}
+                        disabled={publishing || loadingUsers}
+                        className="btn btn-primary"
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          background: publishing ? '#64748b' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          cursor: publishing ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {publishing ? '⏳ Publishing...' : '📤 Publish Videos'}
+                      </button>
+                    )}
                   </div>
-                  <div style={{ maxHeight: '300px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {publishMessage && (
+                    <div style={{
+                      marginBottom: '12px',
+                      padding: '12px',
+                      background: publishMessage.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                      border: `1px solid ${publishMessage.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                      borderRadius: '6px',
+                      color: publishMessage.type === 'success' ? '#10b981' : '#ef4444',
+                      fontSize: '13px'
+                    }}>
+                      {publishMessage.text}
+                    </div>
+                  )}
+                  <div style={{ maxHeight: '400px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {output.final_videos.map((videoPath, idx) => (
                       <div key={idx} style={{ padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -543,9 +710,46 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                             ▶️ Preview
                           </button>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#64748b', wordBreak: 'break-all' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b', wordBreak: 'break-all', marginBottom: '12px' }}>
                           {videoPath}
                         </div>
+                        {job.status === 'completed' && (
+                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #334155' }}>
+                            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '6px', display: 'block', fontWeight: '600' }}>
+                              👤 Select User for this video:
+                            </label>
+                            {loadingUsers ? (
+                              <div style={{ fontSize: '12px', color: '#94a3b8' }}>Loading users...</div>
+                            ) : (
+                              <select
+                                value={videoUserMap[idx] || ''}
+                                onChange={(e) => handleUserSelect(idx, e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px',
+                                  background: '#1e293b',
+                                  border: '1px solid #334155',
+                                  borderRadius: '6px',
+                                  color: '#e2e8f0',
+                                  fontSize: '13px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <option value="">-- Select User --</option>
+                                {users.filter(u => u.is_active).map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.username} ({user.email})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {videoUserMap[idx] && (
+                              <div style={{ fontSize: '11px', color: '#10b981', marginTop: '6px' }}>
+                                ✓ User selected
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

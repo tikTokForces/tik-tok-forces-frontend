@@ -7,6 +7,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
   const [users, setUsers] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [videoUserMap, setVideoUserMap] = useState({}) // Map video index to user
+  const [videoPasswordMap, setVideoPasswordMap] = useState({}) // Map video index to user password
   const [publishing, setPublishing] = useState(false)
   const [publishMessage, setPublishMessage] = useState(null)
 
@@ -52,6 +53,19 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
       ...prev,
       [videoIndex]: userId
     }))
+    // Clear password when user changes
+    setVideoPasswordMap(prev => {
+      const newMap = { ...prev }
+      delete newMap[videoIndex]
+      return newMap
+    })
+  }
+
+  const handlePasswordChange = (videoIndex, password) => {
+    setVideoPasswordMap(prev => ({
+      ...prev,
+      [videoIndex]: password
+    }))
   }
 
   const handlePublish = async () => {
@@ -74,21 +88,28 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
       return
     }
 
+    // Check if all videos have passwords entered
+    const missingPasswords = videos.filter((_, idx) => !videoPasswordMap[idx] || videoPasswordMap[idx].trim() === '')
+    if (missingPasswords.length > 0) {
+      setPublishMessage({ type: 'error', text: `Please enter passwords for all ${missingPasswords.length} video(s)` })
+      return
+    }
+
     setPublishing(true)
     setPublishMessage(null)
 
     try {
-      // Prepare video-user pairs with full user and proxy data
-      const finalOutputVideos = await Promise.all(
+      // Prepare video-user-proxy pairs with full data
+      const videoPostItems = await Promise.all(
         videos.map(async (videoPath, idx) => {
           const userId = videoUserMap[idx]
+          const userPassword = videoPasswordMap[idx]
           const user = users.find(u => u.id === userId)
           if (!user) {
             throw new Error(`User not found for video ${idx + 1}`)
           }
 
           // Get proxy data for this user
-          // First try to get single proxy, if endpoint doesn't exist, get all and find
           let proxyData = null
           try {
             const proxyRes = await fetch(`${apiUrl}/proxies/${user.proxy_id}`)
@@ -106,9 +127,9 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
           }
 
           return {
-            path: videoPath,
-            user_id: userId,
+            final_output_video: videoPath,
             user_email: user.email,
+            user_password: userPassword,
             user_username: user.username,
             proxy_login: proxyData.login || '',
             proxy_password: proxyData.password || '',
@@ -118,22 +139,9 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
         })
       )
 
-      // Use first video's user/proxy as main (for backward compatibility with endpoint)
-      const firstVideo = finalOutputVideos[0]
-      if (!firstVideo) {
-        throw new Error('No videos to publish')
-      }
-
-      // Prepare request - endpoint expects single user/proxy but we pass all video-user pairs
+      // Prepare request - new format with array of video-user-proxy pairs
       const requestData = {
-        final_output_videos: finalOutputVideos,
-        user_email: firstVideo.user_email,
-        user_password: '', // Password is not stored in DB, would need user input
-        user_username: firstVideo.user_username,
-        proxy_login: firstVideo.proxy_login,
-        proxy_password: firstVideo.proxy_password,
-        proxy_ip: firstVideo.proxy_ip,
-        proxy_port: firstVideo.proxy_port
+        videos: videoPostItems
       }
 
       const res = await fetch(`${apiUrl}/job/${jobId}/post`, {
@@ -150,6 +158,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
         setPublishMessage({ type: 'success', text: `Successfully logged publish request for ${videos.length} video(s)` })
         // Clear selections after successful publish
         setVideoUserMap({})
+        setVideoPasswordMap({})
       } else {
         setPublishMessage({ type: 'error', text: data.detail || 'Failed to publish videos' })
       }
@@ -665,22 +674,31 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>✅ Final Output Videos ({output.final_videos.length})</span>
-                    {job.status === 'completed' && (
-                      <button
-                        onClick={handlePublish}
-                        disabled={publishing || loadingUsers}
-                        className="btn btn-primary"
-                        style={{
-                          padding: '8px 16px',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          background: publishing ? '#64748b' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          cursor: publishing ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        {publishing ? '⏳ Publishing...' : '📤 Publish Videos'}
-                      </button>
-                    )}
+                    {job.status === 'completed' && (() => {
+                      const output = job.output_result || {}
+                      const videos = output.final_videos || output.videos || []
+                      const allVideosHaveUsers = videos.length > 0 && videos.every((_, idx) => videoUserMap[idx] && videoPasswordMap[idx] && videoPasswordMap[idx].trim() !== '')
+                      const isDisabled = publishing || loadingUsers || !allVideosHaveUsers
+                      
+                      return (
+                        <button
+                          onClick={handlePublish}
+                          disabled={isDisabled}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '8px 16px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            background: isDisabled ? '#64748b' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                            opacity: isDisabled ? 0.6 : 1
+                          }}
+                          title={!allVideosHaveUsers ? 'Please select users and enter passwords for all videos' : ''}
+                        >
+                          {publishing ? '⏳ Publishing...' : '📤 Publish Videos'}
+                        </button>
+                      )
+                    })()}
                   </div>
                   {publishMessage && (
                     <div style={{
@@ -732,7 +750,8 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                                   borderRadius: '6px',
                                   color: '#e2e8f0',
                                   fontSize: '13px',
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  marginBottom: '12px'
                                 }}
                               >
                                 <option value="">-- Select User --</option>
@@ -744,9 +763,32 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                               </select>
                             )}
                             {videoUserMap[idx] && (
-                              <div style={{ fontSize: '11px', color: '#10b981', marginTop: '6px' }}>
-                                ✓ User selected
-                              </div>
+                              <>
+                                <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '6px', display: 'block', fontWeight: '600' }}>
+                                  🔒 Enter User Password:
+                                </label>
+                                <input
+                                  type="password"
+                                  value={videoPasswordMap[idx] || ''}
+                                  onChange={(e) => handlePasswordChange(idx, e.target.value)}
+                                  placeholder="Enter user password"
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    background: '#1e293b',
+                                    border: '1px solid #334155',
+                                    borderRadius: '6px',
+                                    color: '#e2e8f0',
+                                    fontSize: '13px',
+                                    marginBottom: '6px'
+                                  }}
+                                />
+                                {videoPasswordMap[idx] && videoPasswordMap[idx].trim() !== '' && (
+                                  <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px' }}>
+                                    ✓ Password entered
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         )}

@@ -683,10 +683,19 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                 </div>
               )}
 
-              {(output.final_videos && output.final_videos.length > 0) || (output.videos && output.videos.length > 0) ? (
+              {(() => {
+                const finalVideos = output.final_videos || []
+                const videos = output.videos || []
+                const allVideos = finalVideos.length > 0 ? finalVideos : videos
+                return allVideos.length > 0
+              })() ? (
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>✅ Final Output Videos ({(output.final_videos || output.videos || []).length})</span>
+                    <span>✅ Final Output Videos ({(() => {
+                      const finalVideos = output.final_videos || []
+                      const videos = output.videos || []
+                      return (finalVideos.length > 0 ? finalVideos : videos).length
+                    })()})</span>
                     {job.status === 'completed' && (() => {
                       const output = job.output_result || {}
                       const videos = output.final_videos || output.videos || []
@@ -727,7 +736,11 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                     </div>
                   )}
                   <div style={{ maxHeight: '400px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {(output.final_videos || output.videos || []).map((videoPath, idx) => (
+                    {(() => {
+                      const finalVideos = output.final_videos || []
+                      const videos = output.videos || []
+                      return (finalVideos.length > 0 ? finalVideos : videos)
+                    })().map((videoPath, idx) => (
                       <div key={idx} style={{ padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                           <div style={{ fontSize: '12px', color: '#94a3b8' }}>

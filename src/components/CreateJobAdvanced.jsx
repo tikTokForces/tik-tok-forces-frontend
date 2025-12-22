@@ -79,6 +79,8 @@ export default function CreateJobAdvanced({ apiUrl }) {
   const [footageGroups, setFootageGroups] = useState([])
   const [footageGroupsLoading, setFootageGroupsLoading] = useState(false)
   const [footageGroupsError, setFootageGroupsError] = useState(null)
+  const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
 
   // Load video metadata when path changes
   useEffect(() => {
@@ -146,6 +148,39 @@ export default function CreateJobAdvanced({ apiUrl }) {
     fetchWatermarkGroups()
     fetchFootageGroups()
   }, [apiUrl])
+
+  const handleVideoUpload = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingVideo(true)
+    setUploadError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch(`${apiUrl}/assets/videos/upload`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.detail || 'Upload failed')
+      }
+
+      const data = await res.json()
+      setFormData(prev => ({ ...prev, video_path: data.path }))
+    } catch (error) {
+      setUploadError(error.message)
+      console.error('Video upload error:', error)
+    } finally {
+      setUploadingVideo(false)
+      // Reset input
+      event.target.value = ''
+    }
+  }
 
   const loadVideoMetadata = async (videoPath) => {
     try {
@@ -416,36 +451,69 @@ export default function CreateJobAdvanced({ apiUrl }) {
             {/* Basic Settings */}
             {activeSection === 'basic' && (
               <>
-                <FormGroup label="Video Input Path" helpText="Select the video file to process">
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                <FormGroup label="Video Input Path" helpText="Upload from your computer or select from server">
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <input
                       type="text"
                       name="video_path"
                       value={formData.video_path}
                       onChange={handleChange}
                       placeholder="/path/to/input/video.mp4"
-                      style={{ flex: 1 }}
+                      style={{ flex: 1, minWidth: '200px' }}
                     />
+                    <label className="btn btn-primary" style={{ cursor: 'pointer', position: 'relative' }}>
+                      {uploadingVideo ? '⏳ Uploading...' : '📤 Upload Video'}
+                      <input
+                        type="file"
+                        accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.flv,.wmv"
+                        onChange={handleVideoUpload}
+                        disabled={uploadingVideo}
+                        style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+                      />
+                    </label>
                     <button type="button" onClick={() => openFileBrowser('video_path', 'file')} className="btn btn-secondary">
-                      📁 Browse
+                      📁 Browse Server
                     </button>
                   </div>
+                  {uploadError && (
+                    <small style={{ color: '#f87171', display: 'block', marginTop: '4px' }}>
+                      ❌ {uploadError}
+                    </small>
+                  )}
+                  {formData.video_path && (
+                    <small style={{ color: '#10b981', display: 'block', marginTop: '4px' }}>
+                      ✅ {formData.video_path.split('/').pop()}
+                    </small>
+                  )}
                 </FormGroup>
 
-                <FormGroup label="Output Path" helpText="Select output folder">
+                <FormGroup label="Output Path" helpText="Leave empty to auto-generate, or select custom output folder">
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       type="text"
                       name="output_path"
                       value={formData.output_path}
                       onChange={handleChange}
-                      placeholder="/path/to/output/"
+                      placeholder="Auto-generated if empty"
                       style={{ flex: 1 }}
                     />
                     <button type="button" onClick={() => openFileBrowser('output_path', 'directory')} className="btn btn-secondary">
                       📂 Browse
                     </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setFormData(prev => ({ ...prev, output_path: '' }))} 
+                      className="btn btn-secondary"
+                      title="Clear to use auto-generated path"
+                    >
+                      🔄 Auto
+                    </button>
                   </div>
+                  {!formData.output_path && (
+                    <small style={{ color: '#10b981', display: 'block', marginTop: '4px' }}>
+                      ✅ Output path will be auto-generated on server
+                    </small>
+                  )}
                 </FormGroup>
 
                 <FormGroup label="Music Group" helpText="Optional: apply a saved music group to generated videos">

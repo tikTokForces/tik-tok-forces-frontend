@@ -10,11 +10,12 @@ import FootageManager from './components/FootageManager'
 import ProxyManager from './components/ProxyManager'
 import UserManager from './components/UserManager'
 
-// API URL - use environment variable in production, fallback to localhost for development
+// API URL - use environment variable in production, fallback to relative /api path
+// This avoids CORS issues by using same-origin requests
 const API_URL = import.meta.env.VITE_API_URL || 
                 (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
                   ? 'http://localhost:8000' 
-                  : `${window.location.protocol}//${window.location.host}/api`)
+                  : '/api')
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')

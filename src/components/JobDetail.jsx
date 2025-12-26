@@ -741,22 +741,19 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                       const videos = output.videos || []
                       const allVideos = finalVideos.length > 0 ? finalVideos : videos
                       const allVideosHaveUsers = allVideos.length > 0 && allVideos.every((_, idx) => videoUserMap[idx])
-                      const isDisabled = publishing || loadingUsers || !allVideosHaveUsers
-                      
                       return (
                         <button
                           onClick={handlePublish}
-                          disabled={isDisabled}
+                          disabled={publishing}
                           className="btn btn-primary"
                           style={{
                             padding: '8px 16px',
                             fontSize: '13px',
                             fontWeight: '600',
-                            background: isDisabled ? '#64748b' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            cursor: isDisabled ? 'not-allowed' : 'pointer',
-                            opacity: isDisabled ? 0.6 : 1
+                            background: publishing ? '#64748b' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            cursor: publishing ? 'not-allowed' : 'pointer',
+                            opacity: publishing ? 0.6 : 1
                           }}
-                          title={!allVideosHaveUsers ? 'Please select users for all videos' : ''}
                         >
                           {publishing ? '⏳ Publishing...' : '📤 Publish Videos'}
                         </button>

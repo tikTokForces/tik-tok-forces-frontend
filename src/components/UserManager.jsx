@@ -19,7 +19,8 @@ export default function UserManager({ apiUrl }) {
     proxy_id: '',
     full_name: '',
     is_active: true,
-    is_admin: false
+    is_admin: false,
+    priority: 50
   })
   
   // Group form state
@@ -162,7 +163,8 @@ export default function UserManager({ apiUrl }) {
       proxy_id: user.proxy_id || '',
       full_name: user.full_name || '',
       is_active: user.is_active,
-      is_admin: user.is_admin
+      is_admin: user.is_admin,
+      priority: user.priority || 50
     })
     setShowCreateUser(true)
   }
@@ -175,7 +177,8 @@ export default function UserManager({ apiUrl }) {
       proxy_id: '',
       full_name: '',
       is_active: true,
-      is_admin: false
+      is_admin: false,
+      priority: 50
     })
     setEditingUser(null)
   }
@@ -513,6 +516,21 @@ export default function UserManager({ apiUrl }) {
                 Admin
               </label>
             </div>
+            <div className="form-group">
+              <label>Priority (1-100, 1 = highest) *</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={userForm.priority}
+                onChange={(e) => setUserForm({ ...userForm, priority: parseInt(e.target.value) || 50 })}
+                placeholder="50"
+                required
+              />
+              <small style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginTop: '4px' }}>
+                1 = highest priority (assigned first), 100 = lowest priority
+              </small>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
             <button
@@ -568,6 +586,7 @@ export default function UserManager({ apiUrl }) {
                   <th>Username</th>
                   <th>Email</th>
                   <th>Full Name</th>
+                  <th>Priority</th>
                   <th>Proxy</th>
                   <th>Status</th>
                   <th>Groups</th>
@@ -597,6 +616,18 @@ export default function UserManager({ apiUrl }) {
                     </td>
                     <td>{user.email || '-'}</td>
                     <td>{user.full_name || '-'}</td>
+                    <td>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        background: user.priority <= 20 ? '#10b981' : user.priority <= 50 ? '#f59e0b' : '#64748b',
+                        color: 'white',
+                        fontWeight: '600'
+                      }}>
+                        {user.priority || 50}
+                      </span>
+                    </td>
                     <td>
                       {user.proxy_id ? (
                         <span style={{

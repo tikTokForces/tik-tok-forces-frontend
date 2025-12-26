@@ -19,6 +19,21 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
   useEffect(() => {
     if (job && job.status === 'completed') {
       loadUsers()
+      
+      // Auto-fill user assignments from backend if available
+      const output = job.output_result || {}
+      if (output.user_assignments && Array.isArray(output.user_assignments)) {
+        const autoAssignments = {}
+        output.user_assignments.forEach(assignment => {
+          if (assignment.video_index !== undefined && assignment.user_id) {
+            autoAssignments[assignment.video_index] = assignment.user_id
+          }
+        })
+        if (Object.keys(autoAssignments).length > 0) {
+          setVideoUserMap(autoAssignments)
+          console.log('Auto-filled user assignments:', autoAssignments)
+        }
+      }
     }
   }, [job])
 
@@ -43,7 +58,13 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
     try {
       const res = await fetch(`${apiUrl}/users?limit=1000`)
       const data = await res.json()
-      setUsers(data.users || [])
+      // Sort users by priority (1 = highest priority)
+      const sortedUsers = (data.users || []).sort((a, b) => {
+        const priorityA = a.priority || 50
+        const priorityB = b.priority || 50
+        return priorityA - priorityB
+      })
+      setUsers(sortedUsers)
     } catch (error) {
       console.error('Failed to load users:', error)
     } finally {
@@ -747,37 +768,62 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                             <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '6px', display: 'block', fontWeight: '600' }}>
                               👤 Select User for this video:
                             </label>
-                            {loadingUsers ? (
-                              <div style={{ fontSize: '12px', color: '#94a3b8' }}>Loading users...</div>
-                            ) : (
-                              <select
-                                value={videoUserMap[idx] || ''}
-                                onChange={(e) => handleUserSelect(idx, e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '8px',
-                                  background: '#1e293b',
-                                  border: '1px solid #334155',
-                                  borderRadius: '6px',
-                                  color: '#e2e8f0',
-                                  fontSize: '13px',
-                                  cursor: 'pointer',
-                                  marginBottom: '12px'
-                                }}
-                              >
-                                <option value="">-- Select User --</option>
-                                {users.filter(u => u.is_active).map(user => (
-                                  <option key={user.id} value={user.id}>
-                                    {user.username} ({user.email})
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                            {videoUserMap[idx] && (
-                              <div style={{ fontSize: '11px', color: '#10b981', marginTop: '6px' }}>
-                                ✓ User selected
-                              </div>
-                            )}
+                            {(() => {
+                              const output = job.output_result || {}
+                              const autoAssignment = output.user_assignments?.find(a => a.video_index === idx)
+                              const selectedUserId = videoUserMap[idx]
+                              const selectedUser = users.find(u => u.id === selectedUserId)
+                              
+                              return (
+                                <>
+                                  {autoAssignment && (
+                                    <div style={{ 
+                                      fontSize: '11px', 
+                                      color: '#10b981', 
+                                      marginBottom: '8px',
+                                      padding: '6px',
+                                      background: 'rgba(16, 185, 129, 0.1)',
+                                      borderRadius: '4px',
+                                      border: '1px solid rgba(16, 185, 129, 0.3)'
+                                    }}>
+                                      🤖 Auto-assigned: {autoAssignment.user?.username || 'User'} 
+                                      {autoAssignment.user?.priority && ` (Priority: ${autoAssignment.user.priority})`}
+                                    </div>
+                                  )}
+                                  {loadingUsers ? (
+                                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Loading users...</div>
+                                  ) : (
+                                    <select
+                                      value={videoUserMap[idx] || ''}
+                                      onChange={(e) => handleUserSelect(idx, e.target.value)}
+                                      style={{
+                                        width: '100%',
+                                        padding: '8px',
+                                        background: '#1e293b',
+                                        border: '1px solid #334155',
+                                        borderRadius: '6px',
+                                        color: '#e2e8f0',
+                                        fontSize: '13px',
+                                        cursor: 'pointer',
+                                        marginBottom: '12px'
+                                      }}
+                                    >
+                                      <option value="">-- Select User --</option>
+                                      {users.filter(u => u.is_active).map(user => (
+                                        <option key={user.id} value={user.id}>
+                                          {user.username} ({user.email}) - Priority: {user.priority || 50}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                  {selectedUser && (
+                                    <div style={{ fontSize: '11px', color: '#10b981', marginTop: '6px' }}>
+                                      ✓ Selected: {selectedUser.username} (Priority: {selectedUser.priority || 50})
+                                    </div>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>

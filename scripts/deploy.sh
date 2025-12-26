@@ -44,6 +44,19 @@ server {
     listen 80;
     server_name _;
 
+    # Add CORS headers globally (will be overridden by specific locations)
+    add_header 'Access-Control-Allow-Origin' '*' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
+    add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+    add_header 'Access-Control-Expose-Headers' '*' always;
+
+    # Frontend static assets (must be before other location blocks)
+    location /assets/ {
+        root /opt/tik-tok-forces-frontend/dist;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
     # Frontend
     location / {
         root /opt/tik-tok-forces-frontend/dist;

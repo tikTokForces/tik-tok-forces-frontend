@@ -12,10 +12,8 @@ import UserManager from './components/UserManager'
 
 // API URL - use environment variable in production, fallback to relative /api path
 // This avoids CORS issues by using same-origin requests
-const API_URL = import.meta.env.VITE_API_URL || 
-                (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-                  ? 'http://localhost:8000' 
-                  : '/api')
+// Vite replaces import.meta.env.VITE_API_URL at build time
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')

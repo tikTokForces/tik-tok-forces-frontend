@@ -34,10 +34,9 @@ npm install
 
 # Build frontend with API URL
 # Use relative /api path for production (same origin, no CORS issues)
-API_URL_FOR_BUILD="${API_URL:-/api}"
-echo -e "${YELLOW}🔨 Building frontend with VITE_API_URL=$API_URL_FOR_BUILD${NC}"
-export VITE_API_URL="$API_URL_FOR_BUILD"
-npm run build
+# Force VITE_API_URL to /api to avoid CORS issues
+echo -e "${YELLOW}🔨 Building frontend with VITE_API_URL=/api${NC}"
+VITE_API_URL=/api npm run build
 
 # Setup/Update Nginx configuration
 echo -e "${YELLOW}🌐 Setting up/updating Nginx configuration${NC}"

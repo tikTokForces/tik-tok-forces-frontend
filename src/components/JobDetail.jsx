@@ -808,17 +808,32 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
                                         marginBottom: '12px'
                                       }}
                                     >
-                                      <option value="">-- Select User --</option>
-                                      {users.filter(u => u.is_active).map(user => (
+                                    <option value="">-- Select User --</option>
+                                    {users.filter(u => u.is_active).map(user => {
+                                      const priority = user.priority || 50
+                                      const priorityLabel = priority <= 20 ? '🔴 HIGH' : priority <= 50 ? '🟡 MED' : '🟢 LOW'
+                                      return (
                                         <option key={user.id} value={user.id}>
-                                          {user.username} ({user.email}) - Priority: {user.priority || 50}
+                                          [{priorityLabel}] {user.username} ({user.email}) - Priority: {priority}
                                         </option>
-                                      ))}
+                                      )
+                                    })}
                                     </select>
                                   )}
                                   {selectedUser && (
                                     <div style={{ fontSize: '11px', color: '#10b981', marginTop: '6px' }}>
-                                      ✓ Selected: {selectedUser.username} (Priority: {selectedUser.priority || 50})
+                                      ✓ Selected: {selectedUser.username} 
+                                      <span style={{ 
+                                        marginLeft: '8px',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '10px',
+                                        background: selectedUser.priority <= 20 ? '#10b981' : selectedUser.priority <= 50 ? '#f59e0b' : '#64748b',
+                                        color: 'white',
+                                        fontWeight: '600'
+                                      }}>
+                                        Priority: {selectedUser.priority || 50}
+                                      </span>
                                     </div>
                                   )}
                                 </>

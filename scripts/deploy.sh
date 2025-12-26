@@ -37,10 +37,9 @@ echo -e "${YELLOW}🔨 Building frontend with API_URL=$API_URL${NC}"
 export VITE_API_URL="$API_URL"
 npm run build
 
-# Setup Nginx configuration if it doesn't exist
-if [ ! -f "$NGINX_CONFIG" ]; then
-    echo -e "${YELLOW}🌐 Setting up Nginx configuration${NC}"
-    cat > "$NGINX_CONFIG" << 'EOF'
+# Setup/Update Nginx configuration
+echo -e "${YELLOW}🌐 Setting up/updating Nginx configuration${NC}"
+cat > "$NGINX_CONFIG" << 'EOF'
 server {
     listen 80;
     server_name _;
@@ -52,9 +51,27 @@ server {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 
-    # Backend API
-    location /api {
-        proxy_pass http://localhost:8000;
+    # Backend API - rewrite /api to /
+    location /api/ {
+        # Handle CORS preflight requests
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+            add_header 'Access-Control-Max-Age' 3600 always;
+            add_header 'Content-Type' 'text/plain; charset=utf-8' always;
+            add_header 'Content-Length' 0 always;
+            return 204;
+        }
+        
+        # Add CORS headers for actual requests
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+        add_header 'Access-Control-Expose-Headers' '*' always;
+        
+        rewrite ^/api/(.*) /$1 break;
+        proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -65,9 +82,49 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 
+    # Backend API root (without trailing slash)
+    location = /api {
+        return 301 /api/;
+    }
+
     # Direct backend access (for compatibility)
-    location ~ ^/(process|job|jobs|users|proxies|video|assets|browse|quickpaths|serve_video|video_params) {
-        proxy_pass http://localhost:8000;
+    location ~ ^/(process|job|jobs|users|proxies|video|browse|quickpaths|serve_video|video_params) {
+        # Handle CORS preflight requests
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+            add_header 'Access-Control-Max-Age' 3600 always;
+            add_header 'Content-Type' 'text/plain; charset=utf-8' always;
+            add_header 'Content-Length' 0 always;
+            return 204;
+        }
+        
+        # Add CORS headers for actual requests
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+        add_header 'Access-Control-Expose-Headers' '*' always;
+        
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend assets endpoint (for backend assets like watermarks, musics, etc.)
+    location ~ ^/assets/(watermarks|musics|footages) {
+        # Add CORS headers
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+        
+        proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -82,9 +139,8 @@ server {
     client_max_body_size 2G;
 }
 EOF
-    # Enable Nginx site
-    ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
-fi
+# Enable Nginx site
+ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
 
 # Test and reload Nginx
 echo -e "${YELLOW}🔄 Reloading Nginx${NC}"

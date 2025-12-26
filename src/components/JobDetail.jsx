@@ -18,9 +18,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
 
   useEffect(() => {
     if (job && job.status === 'completed') {
-      loadUsers()
-      
-      // Auto-fill user assignments from backend if available
+      // Auto-fill user assignments from backend if available (priority)
       const output = job.output_result || {}
       if (output.user_assignments && Array.isArray(output.user_assignments)) {
         const autoAssignments = {}
@@ -31,9 +29,12 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
         })
         if (Object.keys(autoAssignments).length > 0) {
           setVideoUserMap(autoAssignments)
-          console.log('Auto-filled user assignments:', autoAssignments)
+          console.log('Auto-filled user assignments from backend:', autoAssignments)
         }
       }
+      
+      // Load users (will auto-assign highest priority users if no backend assignments)
+      loadUsers()
     }
   }, [job])
 
@@ -65,6 +66,32 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
         return priorityA - priorityB
       })
       setUsers(sortedUsers)
+      
+      // Auto-assign highest priority user to videos that don't have a user selected
+      if (job && job.status === 'completed') {
+        const output = job.output_result || {}
+        const videos = output.final_videos || output.videos || []
+        
+        if (videos.length > 0 && sortedUsers.length > 0) {
+          const activeUsers = sortedUsers.filter(u => u.is_active)
+          if (activeUsers.length > 0) {
+            const newAssignments = {}
+            videos.forEach((_, idx) => {
+              // Only assign if not already assigned and not in auto-assignments
+              if (!videoUserMap[idx]) {
+                // Cycle through users based on video index (round-robin)
+                const userIndex = idx % activeUsers.length
+                newAssignments[idx] = activeUsers[userIndex].id
+              }
+            })
+            
+            if (Object.keys(newAssignments).length > 0) {
+              setVideoUserMap(prev => ({ ...prev, ...newAssignments }))
+              console.log('Auto-assigned highest priority users:', newAssignments)
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to load users:', error)
     } finally {

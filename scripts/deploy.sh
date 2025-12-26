@@ -33,8 +33,10 @@ echo -e "${YELLOW}📦 Installing/updating Node.js dependencies${NC}"
 npm install
 
 # Build frontend with API URL
-echo -e "${YELLOW}🔨 Building frontend with API_URL=$API_URL${NC}"
-export VITE_API_URL="$API_URL"
+# Use relative /api path for production (same origin, no CORS issues)
+API_URL_FOR_BUILD="${API_URL:-/api}"
+echo -e "${YELLOW}🔨 Building frontend with VITE_API_URL=$API_URL_FOR_BUILD${NC}"
+export VITE_API_URL="$API_URL_FOR_BUILD"
 npm run build
 
 # Setup/Update Nginx configuration

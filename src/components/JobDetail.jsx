@@ -72,6 +72,16 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
         const priorityB = b.priority || 50
         return priorityA - priorityB
       })
+      
+      // Log users with TikTok password status for debugging
+      console.log('Loaded users:', sortedUsers.map(u => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        has_tiktok_password: !!u.tiktok_password,
+        tiktok_password: u.tiktok_password ? '***' : null
+      })))
+      
       setUsers(sortedUsers)
     } catch (error) {
       console.error('Failed to load users:', error)
@@ -203,10 +213,15 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
             proxyData = {}
           }
 
+          // Check if TikTok password is set
+          if (!user.tiktok_password || user.tiktok_password.trim() === '') {
+            throw new Error(`TikTok password is not set for user ${user.username} (${user.email}). Please set it in user settings.`)
+          }
+
           return {
             final_output_video: videoPath,
             user_email: user.email,
-            user_password: user.tiktok_password || '', // Use TikTok password from user
+            user_password: user.tiktok_password, // Use TikTok password from user (required)
             user_username: user.username,
             proxy_login: proxyData.login || '',
             proxy_password: proxyData.password || '', // Use password from proxy

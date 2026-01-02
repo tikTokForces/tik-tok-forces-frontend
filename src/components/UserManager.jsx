@@ -15,6 +15,7 @@ export default function UserManager({ apiUrl }) {
   const [userForm, setUserForm] = useState({
     username: '',
     password: '',
+    tiktok_password: '',
     email: '',
     proxy_id: '',
     full_name: '',
@@ -107,10 +108,18 @@ export default function UserManager({ apiUrl }) {
       if (!updateData.password) {
         delete updateData.password
       }
+      // Always send tiktok_password (even if empty, to allow clearing it)
+      // Don't delete it - send it as is (empty string or value)
       // Don't send proxy_id if it's empty (keep current)
       if (!updateData.proxy_id) {
         delete updateData.proxy_id
       }
+
+      // Log update data for debugging
+      console.log('Updating user with data:', {
+        ...updateData,
+        tiktok_password: updateData.tiktok_password ? '***' : '(empty)'
+      })
 
       const response = await fetch(`${apiUrl}/users/${userId}`, {
         method: 'PATCH',
@@ -159,6 +168,7 @@ export default function UserManager({ apiUrl }) {
     setUserForm({
       username: user.username,
       password: '',
+      tiktok_password: user.tiktok_password || '',
       email: user.email || '',
       proxy_id: user.proxy_id || '',
       full_name: user.full_name || '',
@@ -173,6 +183,7 @@ export default function UserManager({ apiUrl }) {
     setUserForm({
       username: '',
       password: '',
+      tiktok_password: '',
       email: '',
       proxy_id: '',
       full_name: '',
@@ -445,6 +456,18 @@ export default function UserManager({ apiUrl }) {
                 onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
                 placeholder={editingUser ? "Leave empty to keep current" : "Enter password"}
               />
+            </div>
+            <div className="form-group">
+              <label>TikTok Password {editingUser ? '(for posting)' : ''}</label>
+              <input
+                type="password"
+                value={userForm.tiktok_password}
+                onChange={(e) => setUserForm({ ...userForm, tiktok_password: e.target.value })}
+                placeholder={editingUser ? "Enter TikTok password for posting" : "Enter TikTok account password"}
+              />
+              <small style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginTop: '4px' }}>
+                This is the password for the TikTok account (used for posting videos)
+              </small>
             </div>
             <div className="form-group">
               <label>Email *</label>

@@ -9,6 +9,13 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
   const [videoUserMap, setVideoUserMap] = useState({}) // Map video index to user
   const [publishing, setPublishing] = useState(false)
   const [publishMessage, setPublishMessage] = useState(null)
+  const [showPublishModal, setShowPublishModal] = useState(false)
+  const [publishSettings, setPublishSettings] = useState({
+    timePeriodStart: '',
+    timePeriodEnd: '',
+    intervalMin: '',
+    intervalMax: ''
+  })
 
   useEffect(() => {
     if (jobId) {
@@ -118,7 +125,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
     }))
   }
 
-  const handlePublish = async () => {
+  const handlePublish = () => {
     if (!job || job.status !== 'completed') {
       return
     }
@@ -138,9 +145,36 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
       return
     }
 
+    // Open modal instead of directly publishing
+    setShowPublishModal(true)
+    setPublishMessage(null)
+  }
+
+  const handleStartPosting = async () => {
+    if (!job || job.status !== 'completed') {
+      return
+    }
+
+    const output = job.output_result || {}
+    const videos = (output.final_videos && output.final_videos.length > 0) ? output.final_videos : (output.videos || [])
+    
+    if (videos.length === 0) {
+      setPublishMessage({ type: 'error', text: 'No videos to publish' })
+      setShowPublishModal(false)
+      return
+    }
+
+    // Check if all videos have users selected
+    const missingUsers = videos.filter((_, idx) => !videoUserMap[idx])
+    if (missingUsers.length > 0) {
+      setPublishMessage({ type: 'error', text: `Please select users for all ${missingUsers.length} video(s)` })
+      setShowPublishModal(false)
+      return
+    }
 
     setPublishing(true)
     setPublishMessage(null)
+    setShowPublishModal(false)
 
     try {
       // Prepare video-user-proxy pairs with full data
@@ -184,7 +218,11 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
 
       // Prepare request - new format with array of video-user-proxy pairs
       const requestData = {
-        videos: videoPostItems
+        videos: videoPostItems,
+        time_period_start: publishSettings.timePeriodStart || null,
+        time_period_end: publishSettings.timePeriodEnd || null,
+        interval_min: publishSettings.intervalMin ? parseInt(publishSettings.intervalMin) : null,
+        interval_max: publishSettings.intervalMax ? parseInt(publishSettings.intervalMax) : null
       }
 
       const res = await fetch(`${apiUrl}/job/${jobId}/post`, {
@@ -1307,6 +1345,183 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
           </pre>
         </div>
       </div>
+
+      {/* Publish Modal */}
+      {showPublishModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }} onClick={() => setShowPublishModal(false)}>
+          <div style={{
+            backgroundColor: '#1e293b',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '500px',
+            border: '1px solid #334155',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ marginBottom: '20px' }}>
+              <h2 style={{ 
+                fontSize: '20px', 
+                fontWeight: '600', 
+                color: '#f1f5f9',
+                marginBottom: '8px'
+              }}>
+                Posting / Timing Settings
+              </h2>
+              <div style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '16px' }}>
+                <div style={{ marginBottom: '8px' }}>
+                  Videos: {(() => {
+                    const output = job.output_result || {}
+                    const finalVideos = output.final_videos || []
+                    const videos = output.videos || []
+                    return (finalVideos.length > 0 ? finalVideos : videos).length
+                  })()}
+                </div>
+                <div>
+                  Accounts: {users.filter(u => u.is_active).length}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                color: '#cbd5e1', 
+                marginBottom: '8px',
+                fontWeight: '500'
+              }}>
+                Time period:
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="date"
+                  value={publishSettings.timePeriodStart}
+                  onChange={(e) => setPublishSettings({ ...publishSettings, timePeriodStart: e.target.value })}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+                <span style={{ color: '#64748b' }}>-</span>
+                <input
+                  type="date"
+                  value={publishSettings.timePeriodEnd}
+                  onChange={(e) => setPublishSettings({ ...publishSettings, timePeriodEnd: e.target.value })}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                color: '#cbd5e1', 
+                marginBottom: '8px',
+                fontWeight: '500'
+              }}>
+                Interval:
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="min"
+                  value={publishSettings.intervalMin}
+                  onChange={(e) => setPublishSettings({ ...publishSettings, intervalMin: e.target.value })}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+                <span style={{ color: '#64748b', fontSize: '12px' }}>min</span>
+                <span style={{ color: '#64748b' }}>-</span>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="max"
+                  value={publishSettings.intervalMax}
+                  onChange={(e) => setPublishSettings({ ...publishSettings, intervalMax: e.target.value })}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+                <span style={{ color: '#64748b', fontSize: '12px' }}>min</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowPublishModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#334155',
+                  border: '1px solid #475569',
+                  borderRadius: '6px',
+                  color: '#f1f5f9',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStartPosting}
+                disabled={publishing}
+                style={{
+                  padding: '10px 20px',
+                  background: publishing ? '#64748b' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: publishing ? 'not-allowed' : 'pointer',
+                  opacity: publishing ? 0.6 : 1
+                }}
+              >
+                {publishing ? '⏳ Starting...' : 'Start posting'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </div>
   )

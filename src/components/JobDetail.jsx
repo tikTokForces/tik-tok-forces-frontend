@@ -206,10 +206,10 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
           return {
             final_output_video: videoPath,
             user_email: user.email,
-            user_password: '', // Password not required
+            user_password: user.tiktok_password || '', // Use TikTok password from user
             user_username: user.username,
             proxy_login: proxyData.login || '',
-            proxy_password: proxyData.password || '',
+            proxy_password: proxyData.password || '', // Use password from proxy
             proxy_ip: proxyData.ip || '',
             proxy_port: proxyData.port || 0
           }

@@ -174,7 +174,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
 
     setPublishing(true)
     setPublishMessage(null)
-    setShowPublishModal(false)
+    setShowPublishModal(false) // Close modal immediately when starting
 
     try {
       // Prepare video-user-proxy pairs with full data
@@ -247,6 +247,7 @@ export default function JobDetail({ apiUrl, jobId, onBack }) {
       setPublishMessage({ type: 'error', text: error.message || 'Failed to publish videos' })
     } finally {
       setPublishing(false)
+      setShowPublishModal(false) // Ensure modal is closed
     }
   }
 
